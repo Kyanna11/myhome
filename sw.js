@@ -1,9 +1,9 @@
-const cacheKey = "myhome-v1";
+const cacheKey = "myhome-v2";
 const assets = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./C2DD4F6E-7577-4855-9927-11E6249175F6.png"
+  "./C2DD4F6E-7577-4855-9927-11E6249175F6.jpeg"
 ];
 
 self.addEventListener("install", e => {
