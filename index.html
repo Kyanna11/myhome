@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>我们的秘密小窝</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.min.js">
+    </script>
+    <script src="https://cdn.tailwindcss.com">
+    </script>
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #e0ebf5 0%, #cbdbe5 50%, #bccad6 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        .user-bubble {
+            background: rgba(184, 212, 235, 0.55);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 16px;
+            border-bottom-right-radius: 4px;
+        }
+        .ai-bubble {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        [v-cloak] {
+            display: none !important;
+        }
+
+        .chat-msg-group .action-btn {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s ease;
+        }
+        .chat-msg-group.show-actions .action-btn {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        @media (hover: hover) {
+            .chat-msg-group:hover .action-btn {
+                opacity: 1;
+                pointer-events: auto;
+            }
+        }
+
+        .typing-dots span {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #94a3b8;
+            margin: 0 2px;
+            animation: typing 1.4s infinite;
+        }
+        .typing-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes typing {
+            0%,
+            60%,
+            100% {
+                transform: translateY(0);
+                opacity: 0.4;
+            }
+            30% {
+                transform: translateY(-6px);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            80%,
+            100% {
+                transform: scale(1.4);
+                opacity: 0;
+            }
+        }
+        .pulse-ring::after {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 2px solid #60a5fa;
+            animation: pulse-ring 2s infinite;
+        }
+
+        .confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .confirm-dialog {
+            background: white;
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            max-width: 280px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .fade-in-up {
+            animation: fadeInUp 0.3s ease-out;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        .slide-in-right {
+            animation: slideInRight 0.25s ease-out;
+        }
+
+        .safe-bottom {
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom, 16px));
+        }
+
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+    </style>
+
+    <style id="custom-bubble-style">
+    </style>
+</head>
+<body class="flex justify-center items-center">
+
+    <div id="app" v-cloak class="w-full max-w-md h-[100vh] sm:h-[820px] sm:my-4 sm:rounded-[36px] shadow-2xl relative flex flex-col overflow-hidden glass-card">
+
+        <div v-if="confirmDialog.show" class="confirm-overlay" @click.self="confirmDialog.show = false">
+            <div class="confirm-dialog">
+                <p class="text-sm text-gray-700 font-medium mb-2">{{ confirmDialog.title }}</p>
+                <p class="text-xs text-gray-500 mb-4">{{ confirmDialog.message }}</p>
+                <div class="flex space-x-2">
+                    <button @click="confirmDialog.show = false; confirmDialog.onCancel?.()"
+                    class="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200 transition">取消</button>
+                    <button @click="confirmDialog.show = false; confirmDialog.onConfirm?.()"
+                    class="flex-1 py-2 rounded-xl bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition">确定</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 w-full h-full relative overflow-hidden">
+
+            <!-- ==================== 首页 ==================== -->
+            <div v-if="activeTab === 'home'" class="absolute inset-0 overflow-y-auto no-scrollbar px-5 pt-6 pb-28 space-y-4">
+                <div class="p-6 rounded-3xl glass-card text-center relative overflow-hidden">
+                    <div class="flex justify-center items-center space-x-[-12px] mb-4 relative">
+                        <div @click="triggerUpload('user')" class="w-20 h-20 rounded-full border-4 border-white shadow-md overflow-hidden bg-sky-100 flex items-center justify-center cursor-pointer">
+                            <img :src="userAvatar" class="w-full h-full object-cover">
+                        </div>
+                        <div class="w-9 h-9 rounded-full bg-white/85 backdrop-blur flex items-center justify-center text-xs font-bold text-sky-500/80 shadow z-10">&</div>
+                        <div @click="triggerUpload('lover')" class="w-20 h-20 rounded-full border-4 border-white shadow-md overflow-hidden bg-pink-100 flex items-center justify-center cursor-pointer">
+                            <img :src="loverAvatar" class="w-full h-full object-cover">
+                        </div>
+                        <input type="file" ref="fileInput" class="hidden" @change="handleAvatarUpload" accept="image/*">
+                    </div>
+                    <h2 class="text-lg font-bold text-gray-700 tracking-wide">已经和 <span class="text-sky-600 font-semibold">{{ loverName || 'Ta' }}</span> 在一起 {{ daysTogether }} 天 ♡</h2>
+                    <p class="text-xs text-gray-400 mt-1.5 tracking-widest">我们的故事还在继续</p>
+                    <div v-if="anniversaryDate && nextAnniversary.days > 0" class="mt-3 pt-3 border-t border-white/20">
+                        <p class="text-[11px] text-gray-500">距离 {{ nextAnniversary.label }} 还有 <span class="text-sky-500 font-bold text-sm">{{ nextAnniversary.days }}</span> 天</p>
+                    </div>
+                </div>
+                <div class="p-4 rounded-2xl glass-card">
+                    <p class="text-[11px] text-gray-400 font-medium mb-1">✨ {{ loverName || 'Ta' }} 的今日状态</p>
+                    <p class="text-sm text-gray-700 italic font-medium">" {{ statusMessage || '正在乖乖等你呢...' }} "</p>
+                </div>
+                <div class="p-5 rounded-3xl glass-card">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-xs font-bold text-gray-700">我们的小清单</h3>
+                        <span class="text-[11px] bg-white/60 text-gray-500 px-2 py-0.5 rounded-full font-medium">{{ todos.filter(t => !t.done).length }}/{{ todos.length }}</span>
+                    </div>
+                    <div class="space-y-2 max-h-40 overflow-y-auto no-scrollbar">
+                        <div v-if="todos.length === 0" class="text-center text-gray-400 py-4 text-[11px]">还没有待办事项~</div>
+                        <div v-for="(todo, index) in todos" :key="index" class="flex justify-between items-center bg-white/40 px-4 py-3 rounded-xl text-xs text-gray-600 border border-white/20">
+                            <div class="flex items-center space-x-3">
+                                <input type="checkbox" v-model="todo.done" class="rounded accent-sky-400 w-3.5 h-3.5">
+                                <span :class="{'line-through text-gray-400': todo.done}">{{ todo.text }}</span>
+                            </div>
+                            <button @click="removeTodo(index)" class="text-[11px] text-gray-400 hover:text-red-400">删除</button>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex space-x-2">
+                        <input type="text" v-model="newTodo" placeholder="添加一件小事..." @keyup.enter="addTodo" class="flex-1 bg-white/50 border border-white/40 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 placeholder-gray-400">
+                        <button @click="addTodo" class="bg-gray-600 text-white w-8 h-8 rounded-xl flex items-center justify-center font-bold hover:bg-gray-700 shadow">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== 聊天页 ==================== -->
+            <div v-if="activeTab === 'chat'" class="absolute inset-0 flex flex-col justify-between px-5 pt-4 pb-28">
+                <div class="pb-2 border-b border-white/10 flex-shrink-0 flex justify-between items-center px-1">
+                    <div class="w-10"></div>
+                    <div class="text-center">
+                        <h2 class="text-sm font-bold text-gray-700">{{ loverName || 'Ta' }}</h2>
+                        <p class="text-[9px] text-green-500 mt-0.5">● 恋人已上线</p>
+                    </div>
+                    <button @click="triggerLoverReply" :disabled="isAIThinking"
+                    class="w-9 h-9 rounded-full glass-card bg-sky-100/40 border border-sky-200/60 shadow-sm flex items-center justify-center text-sm active:scale-95 transition-transform relative"
+                    :class="{'pulse-ring': !isAIThinking, 'opacity-50': isAIThinking}">
+                    <span v-if="!isAIThinking">💙</span>
+                    <span v-else class="text-[10px]">...</span>
+                </button>
+            </div>
+
+            <div class="flex-1 my-3 space-y-4 text-xs overflow-y-auto no-scrollbar px-1" ref="chatScrollArea">
+                <div v-if="chatHistory.length === 0" class="text-center text-gray-400 py-20">
+                    <p class="text-3xl mb-3">💌</p>
+                    <p class="text-xs">发送第一条消息，开始你们的故事吧</p>
+                </div>
+
+                <div v-for="(msg, index) in chatHistory" :key="index"
+                class="chat-msg-group"
+                :class="[msg.role === 'assistant' ? 'flex items-start space-x-2.5 max-w-[85%]' : 'flex items-start justify-end space-x-2.5 max-w-[85%] ml-auto', msg.showActions ? 'show-actions' : '']"
+                @click.stop="toggleMessageActions(index)">
+
+                <div v-if="msg.role === 'assistant'" class="w-8 h-8 rounded-full shadow-sm overflow-hidden flex-shrink-0 bg-white">
+                    <img :src="loverAvatar" class="w-full h-full object-cover">
+                </div>
+
+                <div class="relative max-w-full">
+                    <div :class="msg.role === 'assistant' ? 'p-3 ai-bubble text-gray-700 leading-relaxed shadow-sm' : 'p-3 user-bubble text-gray-800 leading-relaxed shadow-sm'">
+                        <div v-if="msg.isEditing">
+                            <textarea v-model="msg.editContent" rows="3" class="w-full bg-white/80 p-2 rounded-lg border border-sky-300 focus:outline-none text-xs text-gray-800 resize-none"></textarea>
+                            <div class="flex justify-end space-x-2 mt-1.5">
+                                <button @click.stop="cancelEditMessage(index)" class="text-[10px] bg-gray-100 text-gray-500 px-2 py-1 rounded-lg">取消</button>
+                                <button @click.stop="saveEditMessage(index)" class="text-[10px] bg-sky-100 text-sky-600 px-2 py-1 rounded-lg font-bold">保存</button>
+                            </div>
+                        </div>
+                        <div v-else>
+                            <p v-if="msg.content && msg.content !== '{{typing}}'">{{ msg.content }}</p>
+                            <div v-if="msg.content === '{{typing}}'" class="typing-dots"><span></span><span></span><span></span></div>
+                            <img v-if="msg.image" :src="msg.image" class="mt-2 rounded-lg max-w-full max-h-40 object-cover cursor-pointer" @click.stop="previewImage = msg.image">
+                        </div>
+                    </div>
+
+                    <div class="absolute flex space-x-1 text-[9px] action-btn"
+                    :class="msg.role === 'assistant' ? 'left-1 -bottom-4' : 'right-1 -bottom-4'">
+                    <button @click.stop="editMessage(index)" class="px-1.5 py-0.5 rounded glass-btn text-gray-500 hover:text-sky-600 bg-white/60">编辑</button>
+                    <button @click.stop="deleteMessage(index)" class="px-1.5 py-0.5 rounded glass-btn text-gray-500 hover:text-red-400 bg-white/60">删除</button>
+                </div>
+            </div>
+
+            <div v-if="msg.role === 'user'" class="w-8 h-8 rounded-full shadow-sm overflow-hidden flex-shrink-0 bg-white">
+                <img :src="userAvatar" class="w-full h-full object-cover">
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-shrink-0 flex items-center space-x-2 pt-2 border-t border-white/10">
+        <button @click="triggerImageUpload" class="w-8 h-8 rounded-xl glass-card bg-white/40 flex items-center justify-center border border-white/50 text-xs font-bold text-gray-500 hover:bg-white/80 transition-colors">＋</button>
+        <input type="file" ref="imageInput" class="hidden" @change="handleImageMessageUpload" accept="image/*">
+        <input type="text" v-model="userInputText" @keyup.enter="sendMessage" placeholder="说说你的小心思..." class="flex-1 bg-white/50 border border-white/40 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700 placeholder-gray-400/80">
+        <button @click="sendMessage" :disabled="!userInputText.trim()" class="w-8 h-8 rounded-xl glass-card bg-white/60 border border-white/50 flex items-center justify-center text-sm font-bold active:scale-95 transition-all shadow-sm" :class="{'text-gray-600': userInputText.trim(), 'text-gray-300': !userInputText.trim()}">➔</button>
+    </div>
+</div>
+
+<!-- ==================== 日记页 ==================== -->
+<div v-if="activeTab === 'diary'" class="absolute inset-0 flex flex-col px-5 pt-4" style="padding-bottom: 7rem;">
+    <div class="p-4 rounded-2xl glass-card mb-3 flex-shrink-0">
+        <h3 class="text-xs font-bold text-gray-700 mb-1">📖 交换日记</h3>
+        <p class="text-[11px] text-gray-400">写下心情，{{ loverName || 'Ta' }} 会认真回复每一篇。</p>
+    </div>
+    <div class="flex-1 space-y-3 overflow-y-auto no-scrollbar text-xs mb-3" ref="diaryScrollArea">
+        <div v-if="diaries.length === 0" class="p-4 rounded-2xl bg-white/30 text-center text-gray-400 py-16">
+            <p class="text-4xl mb-3">📝</p>
+            <p class="text-xs">还没有日记，在下方写下今天的第一篇吧！</p>
+        </div>
+        <div v-for="(diary, idx) in diaries" :key="idx" class="p-4 rounded-2xl bg-white/50 border border-white/20 space-y-2 fade-in-up">
+            <div class="flex justify-between text-[10px] text-gray-400 font-medium">
+                <span>📅 {{ diary.date }}</span>
+                <div class="space-x-1 flex items-center">
+                    <button @click="regenerateDiaryReply(idx)" :disabled="isAIThinking" class="px-1.5 py-0.5 rounded glass-btn text-gray-500 hover:text-sky-600 text-[9px]">🔄 重新回信</button>
+                    <button @click="confirmDeleteDiary(idx)" class="px-1.5 py-0.5 rounded glass-btn text-gray-500 hover:text-red-400">🗑️</button>
+                </div>
+            </div>
+            <div>
+                <p class="text-[10px] text-gray-400 font-medium mb-1">✍️ 你的日记：</p>
+                <div v-if="diary.editingUser">
+                    <textarea v-model="diary.editUserContent" rows="3" class="w-full bg-white/80 p-2 rounded-xl border border-sky-300 focus:outline-none text-xs text-gray-700 resize-none"></textarea>
+                    <div class="flex justify-end space-x-2 mt-1">
+                        <button @click="cancelDiaryUserEdit(idx)" class="text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-lg">取消</button>
+                        <button @click="saveDiaryUserEdit(idx)" class="text-[9px] bg-sky-100 text-sky-600 px-2 py-0.5 rounded-lg font-bold">保存</button>
+                    </div>
+                </div>
+                <div v-else class="flex justify-between items-start">
+                    <p class="text-gray-700 leading-relaxed flex-1 whitespace-pre-wrap">{{ diary.userContent }}</p>
+                    <button @click="startEditDiaryUser(idx)" class="text-[9px] px-1.5 py-0.5 rounded glass-btn text-gray-400 active:text-sky-600 ml-2 flex-shrink-0">✏️</button>
+                </div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-dashed border-gray-300/40 space-y-1">
+                <p class="text-[10px] text-pink-500 font-medium">💕 {{ loverName || 'Ta' }} 的回信：</p>
+                <div v-if="diary.loverContent">
+                    <div v-if="diary.editingLover">
+                        <textarea v-model="diary.editLoverContent" rows="3" class="w-full bg-white/80 p-2 rounded-xl border border-pink-300 focus:outline-none text-xs text-gray-600 italic resize-none"></textarea>
+                        <div class="flex justify-end space-x-2 mt-1">
+                            <button @click="cancelDiaryLoverEdit(idx)" class="text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-lg">取消</button>
+                            <button @click="saveDiaryLoverEdit(idx)" class="text-[9px] bg-pink-100 text-pink-600 px-2 py-0.5 rounded-lg font-bold">保存</button>
+                        </div>
+                    </div>
+                    <div v-else class="flex justify-between items-start">
+                        <p class="text-gray-600 italic leading-relaxed flex-1 whitespace-pre-wrap">{{ diary.loverContent }}</p>
+                        <button @click="startEditDiaryLover(idx)" class="text-[9px] px-1.5 py-0.5 rounded glass-btn text-gray-400 active:text-pink-600 ml-2 flex-shrink-0">✏️</button>
+                    </div>
+                </div>
+                <div v-else-if="!hasAPIConfigured" class="bg-amber-50/60 border border-amber-200/50 rounded-xl p-3 space-y-2">
+                    <p class="text-[11px] text-amber-700 leading-relaxed">⚠️ 还没有配置 API，我暂时无法自动回复你的日记。</p>
+                    <p class="text-[10px] text-amber-600 leading-relaxed">💡 你可以：</p>
+                    <ul class="text-[10px] text-amber-600 space-y-0.5 list-disc list-inside">
+                        <li>前往<span class="font-bold">「设置 → API」</span>配置后，点击<span class="font-bold">「🔄 重新回信」</span></li>
+                        <li>或直接<span class="font-bold">点击右侧 ✏️ 按钮</span>，手动写下回信</li>
+                    </ul>
+                </div>
+                <div v-else-if="diary.isApiError" class="bg-red-50/60 border border-red-200/50 rounded-xl p-3">
+                    <p class="text-[11px] text-red-600 leading-relaxed">❌ {{ diary.loverContent || '回信生成失败' }}</p>
+                    <button @click="regenerateDiaryReply(idx)" :disabled="isAIThinking" class="text-[10px] text-red-500 hover:text-red-700 underline mt-1">🔄 点击重试</button>
+                </div>
+                <div v-else-if="diary.isLoading" class="flex items-center space-x-2 text-gray-400">
+                    <div class="typing-dots"><span></span><span></span><span></span></div>
+                    <span class="text-[10px]">{{ loverName || 'Ta' }} 正在回信...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="flex-shrink-0 flex space-x-2 pt-3 pb-1 border-t border-white/10 bg-gradient-to-t from-white/30 to-transparent">
+        <input type="text" v-model="newDiaryText" @keyup.enter="saveDiary" placeholder="写下今天的日记..." class="flex-1 bg-white/60 border border-white/50 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-sky-400 text-gray-700 placeholder-gray-400/80">
+        <button @click="saveDiary" :disabled="!newDiaryText.trim() || isAIThinking" class="bg-gray-700 text-white px-4 py-2.5 rounded-xl text-xs hover:bg-gray-800 shadow disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">{{ isAIThinking ? '寄出中...' : '寄出' }}</button>
+    </div>
+</div>
+
+<!-- ==================== 记忆页 ==================== -->
+<div v-if="activeTab === 'memory'" class="absolute inset-0 flex flex-col px-5 pt-4" style="padding-bottom: 7rem;">
+    <div class="p-4 rounded-2xl glass-card mb-3 flex-shrink-0">
+        <h3 class="text-xs font-bold text-gray-700 mb-1">🐾 记忆碎片</h3>
+        <p class="text-[11px] text-gray-400">从聊天记录中总结珍贵回忆，或手动保存美好瞬间。</p>
+    </div>
+    <div v-if="!memoryView.month" class="flex-1 overflow-y-auto no-scrollbar space-y-4">
+        <div v-for="year in allYears" :key="year" class="space-y-2">
+            <h3 class="text-xs font-bold text-gray-500 px-1">{{ year }} 年</h3>
+            <div class="grid grid-cols-3 gap-2">
+                <div v-for="month in 12" :key="month" @click="openMemoryMonth(year, month)" class="p-3 rounded-xl glass-card text-center cursor-pointer hover:bg-white/60 transition-all active:scale-95" :class="getMonthMemoryCount(year, month) > 0 ? 'border-sky-200/50' : 'opacity-60'">
+                    <p class="text-lg mb-1">{{ month }}月</p>
+                    <p class="text-[10px]" :class="getMonthMemoryCount(year, month) > 0 ? 'text-sky-500 font-medium' : 'text-gray-400'">{{ getMonthMemoryCount(year, month) }} 条</p>
+                    <div v-if="getMonthMemoryCount(year, month) > 0" class="flex justify-center space-x-0.5 mt-1">
+                        <span v-for="i in Math.min(getMonthMemoryCount(year, month), 4)" :key="i" class="w-1.5 h-1.5 rounded-full bg-sky-300"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div v-if="allYears.length === 0" class="text-center text-gray-400 py-20">
+            <p class="text-4xl mb-3">🐾</p>
+            <p class="text-xs">还没有记忆，点击上方月份开始吧</p>
+        </div>
+    </div>
+    <div v-else class="flex-1 flex flex-col space-y-3 overflow-y-auto no-scrollbar">
+        <div class="flex items-center space-x-2">
+            <button @click="memoryView.month = null" class="text-xs text-sky-500 hover:text-sky-700 font-medium">← 返回</button>
+            <span class="text-xs text-gray-400">{{ memoryView.year }}年{{ memoryView.month }}月</span>
+        </div>
+        <div class="p-4 rounded-2xl glass-card space-y-3">
+            <p class="text-[11px] font-medium text-gray-600">选择日期范围</p>
+            <div class="flex items-center space-x-2">
+                <input type="date" v-model="memoryView.startDate" :min="`${memoryView.year}-${String(memoryView.month).padStart(2,'0')}-01`" :max="`${memoryView.year}-${String(memoryView.month).padStart(2,'0')}-${daysInMonth(memoryView.year, memoryView.month)}`" class="flex-1 bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700">
+                <span class="text-gray-400 text-xs">至</span>
+                <input type="date" v-model="memoryView.endDate" :min="memoryView.startDate" :max="`${memoryView.year}-${String(memoryView.month).padStart(2,'0')}-${daysInMonth(memoryView.year, memoryView.month)}`" class="flex-1 bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700">
+            </div>
+            <div class="flex space-x-2">
+                <button @click="generateMemoryFromChat" :disabled="isAIThinking || !hasAPIConfigured" class="flex-1 bg-sky-50 text-sky-600 border border-sky-200 py-2 rounded-xl text-xs font-medium hover:bg-sky-100 transition disabled:opacity-50 disabled:cursor-not-allowed">{{ isAIThinking ? '生成中...' : '🤖 AI 总结' }}</button>
+                <button @click="showManualMemoryInput = true" class="flex-1 bg-white/60 border border-gray-200 text-gray-700 py-2 rounded-xl text-xs font-medium hover:bg-white/90 transition">✍️ 手动粘贴</button>
+            </div>
+            <p v-if="!hasAPIConfigured" class="text-[9px] text-amber-600">⚠️ AI 总结需要先配置 API（设置 → API）</p>
+        </div>
+        <div v-if="showManualMemoryInput" class="p-4 rounded-2xl glass-card space-y-3 slide-in-right">
+            <p class="text-[11px] font-medium text-gray-600">手动粘贴记忆</p>
+            <textarea v-model="manualMemoryContent" rows="5" placeholder="将已经总结好的记忆粘贴到这里..." class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700 resize-none"></textarea>
+            <div class="flex space-x-2">
+                <button @click="showManualMemoryInput = false; manualMemoryContent = ''" class="flex-1 bg-gray-100 text-gray-600 py-2 rounded-xl text-xs font-medium hover:bg-gray-200 transition">取消</button>
+                <button @click="saveManualMemory" :disabled="!manualMemoryContent.trim()" class="flex-1 bg-gray-700 text-white py-2 rounded-xl text-xs font-medium hover:bg-gray-800 transition disabled:opacity-50">保存记忆</button>
+            </div>
+        </div>
+        <div class="space-y-2">
+            <p class="text-[11px] font-medium text-gray-500 px-1">{{ getMonthMemories(memoryView.year, memoryView.month).length }} 条记忆</p>
+            <div v-if="getMonthMemories(memoryView.year, memoryView.month).length === 0" class="text-center text-gray-400 py-8 text-[11px]">这个月还没有记忆</div>
+            <div v-for="mem in getMonthMemories(memoryView.year, memoryView.month)" :key="mem.id" class="p-4 rounded-2xl bg-white/50 border border-white/20 space-y-3 fade-in-up">
+                <div class="flex justify-between items-center">
+                    <p class="text-[10px] text-gray-400">📝 {{ formatMemoryDateRange(mem) }}<span v-if="mem.source === 'ai'" class="text-sky-400 ml-1">· AI</span><span v-else class="text-amber-400 ml-1">· 手动</span></p>
+                    <div class="flex items-center space-x-1">
+                        <button @click="startEditMemory(mem)" class="px-2 py-1 rounded-lg glass-btn text-[10px] text-gray-500 active:bg-sky-100 active:text-sky-600">✏️ 编辑</button>
+                        <button @click="confirmDeleteMemory(mem.id)" class="px-2 py-1 rounded-lg glass-btn text-[10px] text-gray-500 active:bg-red-100 active:text-red-500">🗑️ 删除</button>
+                    </div>
+                </div>
+                <div v-if="mem.isEditing">
+                    <textarea v-model="mem.editContent" rows="4" class="w-full bg-white/80 p-2 rounded-xl border border-sky-300 focus:outline-none text-xs text-gray-700 resize-none"></textarea>
+                    <div class="flex justify-end space-x-2 mt-2">
+                        <button @click="cancelEditMemory(mem)" class="px-3 py-1 rounded-lg bg-gray-100 text-gray-500 text-[10px]">取消</button>
+                        <button @click="saveEditMemory(mem)" class="px-3 py-1 rounded-lg bg-sky-100 text-sky-600 text-[10px] font-bold">保存</button>
+                    </div>
+                </div>
+                <div v-else>
+                    <div v-if="!mem.expanded">
+                        <p class="text-xs text-gray-600 line-clamp-2 leading-relaxed">{{ mem.content }}</p>
+                        <button @click="mem.expanded = true" class="text-[10px] text-sky-500 font-medium mt-1">展开全文 ↓</button>
+                    </div>
+                    <div v-else>
+                        <p class="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{{ mem.content }}</p>
+                        <button @click="mem.expanded = false" class="text-[10px] text-sky-500 font-medium mt-1">收起 ↑</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 设置页 ==================== -->
+<div v-if="activeTab === 'more'" class="absolute inset-0 overflow-y-auto no-scrollbar px-5 pt-4 pb-28">
+    <div v-if="!settingsSubPage" class="space-y-2">
+        <div @click="settingsSubPage = 'persona'" class="p-4 rounded-2xl glass-card flex items-center justify-between cursor-pointer hover:bg-white/60 transition active:scale-[0.98]">
+            <div class="flex items-center space-x-3"><span class="text-xl">💕</span><div><p class="text-sm font-medium text-gray-700">人设</p><p class="text-[10px] text-gray-400">名字、纪念日、性格设定</p></div></div><span class="text-gray-300 text-lg">›</span>
+        </div>
+        <div @click="settingsSubPage = 'api'" class="p-4 rounded-2xl glass-card flex items-center justify-between cursor-pointer hover:bg-white/60 transition active:scale-[0.98]">
+            <div class="flex items-center space-x-3"><span class="text-xl">⚙️</span><div><p class="text-sm font-medium text-gray-700">API 配置</p><p class="text-[10px] text-gray-400">通用 API、MiniMax、连接测试</p></div></div><span class="text-gray-300 text-lg">›</span>
+        </div>
+        <div @click="settingsSubPage = 'appearance'" class="p-4 rounded-2xl glass-card flex items-center justify-between cursor-pointer hover:bg-white/60 transition active:scale-[0.98]">
+            <div class="flex items-center space-x-3"><span class="text-xl">🎨</span><div><p class="text-sm font-medium text-gray-700">外观</p><p class="text-[10px] text-gray-400">自定义气泡 CSS 样式</p></div></div><span class="text-gray-300 text-lg">›</span>
+        </div>
+        <div @click="settingsSubPage = 'data'" class="p-4 rounded-2xl glass-card flex items-center justify-between cursor-pointer hover:bg-white/60 transition active:scale-[0.98]">
+            <div class="flex items-center space-x-3"><span class="text-xl">💾</span><div><p class="text-sm font-medium text-gray-700">数据管理</p><p class="text-[10px] text-gray-400">导出、导入、清除数据</p></div></div><span class="text-gray-300 text-lg">›</span>
+        </div>
+    </div>
+
+    <div v-if="settingsSubPage === 'persona'" class="space-y-4 slide-in-right">
+        <button @click="settingsSubPage = null" class="text-xs text-sky-500 hover:text-sky-700 font-medium mb-2 block">← 返回设置</button>
+        <div class="p-5 rounded-3xl glass-card space-y-4">
+            <h3 class="text-xs font-bold text-gray-700 border-b border-white/20 pb-2">💕 恋人灵魂人设</h3>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">AI 恋人的名字</label><input type="text" v-model="loverName" placeholder="给 Ta 取个名字吧" class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700"></div>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">恋爱纪念日</label><input type="date" v-model="anniversaryDate" class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700"></div>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">Ta 的心情签名</label><input type="text" v-model="statusMessage" placeholder="比如：今天也在乖乖等你哦~" class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700"></div>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">核心人格设定 (System Prompt)</label><textarea v-model="systemPrompt" rows="5" placeholder="在这里自由设定 Ta 的性格、说话风格、特殊习惯等..." class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700 resize-none"></textarea></div>
+        </div>
+    </div>
+
+    <div v-if="settingsSubPage === 'api'" class="space-y-4 slide-in-right">
+        <button @click="settingsSubPage = null" class="text-xs text-sky-500 hover:text-sky-700 font-medium mb-2 block">← 返回设置</button>
+        <div class="p-5 rounded-3xl glass-card space-y-4">
+            <h3 class="text-xs font-bold text-gray-700 border-b border-white/20 pb-2">⚙️ 通用 API 设置（OpenAI 兼容）</h3>
+            <p class="text-[9px] text-gray-400">支持 OpenAI / DeepSeek / 各类中转站 / NewAPI 等</p>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">API 地址</label><input type="text" v-model="apiUrl" placeholder="https://api.openai.com/v1/chat/completions" class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700"></div>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">API Key</label><input type="password" v-model="apiKey" placeholder="sk-..." class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700"></div>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">模型名称</label><input type="text" v-model="apiModel" placeholder="gpt-3.5-turbo / deepseek-chat" class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700"></div>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">自定义 Headers (可选，JSON)</label><textarea v-model="customHeaders" rows="2" placeholder='{"X-Custom-Header": "value"}' class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700 resize-none"></textarea></div>
+            <button @click="testAPIConnection" :disabled="isTesting" class="w-full py-2 rounded-xl text-xs font-medium transition-all" :class="isTesting ? 'bg-gray-200 text-gray-400' : 'bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100'">{{ isTesting ? '测试中...' : '🔗 测试通用 API 连接' }}</button>
+            <p v-if="testResult" class="text-[10px] mt-1.5 text-center" :class="testResult.success ? 'text-green-500' : 'text-red-400'">{{ testResult.message }}</p>
+        </div>
+        <div class="p-5 rounded-3xl glass-card space-y-4">
+            <h3 class="text-xs font-bold text-gray-700 border-b border-white/20 pb-2">🚀 MiniMax（海螺）专属配置</h3>
+            <p class="text-[9px] text-gray-400">使用 MiniMax API 时填写，会优先使用</p>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">MiniMax Group ID</label><input type="text" v-model="minimaxGroupId" placeholder="例如: 123456789..." class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700"></div>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">MiniMax API Key</label><input type="password" v-model="minimaxApiKey" placeholder="填入 MiniMax 密钥" class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700"></div>
+            <div><label class="block text-[11px] font-medium text-gray-500 mb-1">模型选择</label><input type="text" v-model="minimaxModel" placeholder="例如: abab6.5s-chat" class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700"></div>
+            <button @click="testMinimaxConnection" :disabled="isTestingMinimax" class="w-full py-2 rounded-xl text-xs font-medium transition-all" :class="isTestingMinimax ? 'bg-gray-200 text-gray-400' : 'bg-pink-50 text-pink-600 border border-pink-200 hover:bg-pink-100'">{{ isTestingMinimax ? '测试中...' : '🔗 测试 MiniMax 连接' }}</button>
+            <p v-if="minimaxTestResult" class="text-[10px] mt-1.5 text-center" :class="minimaxTestResult.success ? 'text-green-500' : 'text-red-400'">{{ minimaxTestResult.message }}</p>
+        </div>
+    </div>
+
+    <div v-if="settingsSubPage === 'appearance'" class="space-y-4 slide-in-right">
+        <button @click="settingsSubPage = null" class="text-xs text-sky-500 hover:text-sky-700 font-medium mb-2 block">← 返回设置</button>
+        <div class="p-5 rounded-3xl glass-card space-y-4">
+            <h3 class="text-xs font-bold text-gray-700 border-b border-white/20 pb-2">🎨 外观定制</h3>
+            <p class="text-[10px] text-gray-400">自定义聊天气泡 CSS，修改后聊天页实时生效</p>
+            <div>
+                <label class="block text-[11px] font-medium text-gray-500 mb-1">气泡 CSS 样式</label>
+                <p class="text-[9px] text-gray-400 mb-1">可用选择器：<code class="bg-gray-100 px-1 rounded">.user-bubble</code>（用户气泡）· <code class="bg-gray-100 px-1 rounded">.ai-bubble</code>（AI 气泡）</p>
+                <textarea v-model="customBubbleCSS" rows="8" placeholder=".user-bubble {&#10;  background: rgba(184, 212, 235, 0.55);&#10;  border-radius: 16px;&#10;}&#10;.ai-bubble {&#10;  background: rgba(255, 255, 255, 0.65);&#10;  border-radius: 16px;&#10;}" class="w-full bg-white/60 border border-white/50 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400 text-gray-700 font-mono resize-none"></textarea>
+                <button @click="resetBubbleCSS" class="text-[10px] text-sky-500 hover:text-sky-700 mt-1">↺ 恢复默认样式</button>
+            </div>
+            <div class="p-4 rounded-2xl bg-white/30 border border-white/30 space-y-3">
+                <p class="text-[10px] text-gray-400 font-medium">预览效果（修改后聊天页同步生效）：</p>
+                <div class="space-y-3">
+                    <div class="user-bubble p-3 text-xs text-gray-800 max-w-[75%] ml-auto">宝贝今天想我了吗？我今天吃了超好吃的小蛋糕~</div>
+                    <div class="ai-bubble p-3 text-xs text-gray-700 max-w-[75%]">当然想你啦！什么蛋糕呀，都不给我留一口，哼~</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="settingsSubPage === 'data'" class="space-y-4 slide-in-right">
+        <button @click="settingsSubPage = null" class="text-xs text-sky-500 hover:text-sky-700 font-medium mb-2 block">← 返回设置</button>
+        <div class="p-5 rounded-3xl glass-card space-y-3">
+            <h3 class="text-xs font-bold text-gray-700 border-b border-white/20 pb-2">💾 数据管理</h3>
+            <div class="grid grid-cols-2 gap-2">
+                <button @click="exportBackup" class="bg-gray-700 text-white font-medium text-xs py-2.5 rounded-xl hover:bg-gray-800 transition shadow-sm">📦 导出备份</button>
+                <button @click="triggerImport" class="bg-white/60 border border-gray-300 text-gray-700 font-medium text-xs py-2.5 rounded-xl hover:bg-white/90 transition shadow-sm">📥 导入备份</button>
+            </div>
+            <input type="file" ref="importInput" class="hidden" @change="importBackup" accept=".json">
+            <button @click="confirmClearAllData" class="w-full bg-red-50 text-red-500 border border-red-200 font-medium text-xs py-2.5 rounded-xl hover:bg-red-100 transition mt-2">🗑️ 清除所有数据</button>
+            <p class="text-[8px] text-gray-400 text-center mt-1">⚠️ API Key 仅保存在本地浏览器</p>
+        </div>
+    </div>
+</div>
+
+</div>
+
+<div v-if="previewImage" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" @click="previewImage = null">
+    <img :src="previewImage" class="max-w-full max-h-[80vh] rounded-2xl shadow-2xl" @click.stop>
+    <button @click="previewImage = null" class="absolute top-6 right-6 w-10 h-10 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white text-xl font-bold">✕</button>
+</div>
+
+<div class="absolute bottom-0 left-0 right-0 h-[5.5rem] safe-bottom glass-card flex justify-around items-center px-1 z-30 shadow-lg border-t border-white/20 rounded-none sm:rounded-b-[36px]">
+    <button v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id" :class="activeTab === tab.id ? 'text-sky-600 font-bold scale-105' : 'text-gray-400'" class="flex flex-col items-center space-y-0.5 transition-all duration-200 w-[18%] py-1">
+        <span class="text-[1.35rem] leading-none">{{ tab.icon }}</span>
+        <span class="text-[8px] leading-none">{{ tab.label }}</span>
+    </button>
+</div>
+
+</div>
+
+<script>
+    const { createApp, ref, computed, watch, nextTick, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            const activeTab = ref('home');
+            const isAIThinking = ref(false);
+            const isTesting = ref(false);
+            const isTestingMinimax = ref(false);
+            const testResult = ref(null);
+            const minimaxTestResult = ref(null);
+            const previewImage = ref(null);
+            const settingsSubPage = ref(null);
+            const showManualMemoryInput = ref(false);
+            const manualMemoryContent = ref('');
+
+            const confirmDialog = ref({ show: false, title: '', message: '', onConfirm: null, onCancel: null });
+            const showConfirm = (title, message) => new Promise((resolve) => {
+                confirmDialog.value = { show: true, title, message, onConfirm: () => resolve(true), onCancel: () => resolve(false) };
+            });
+
+            const tabs = [
+                { id: 'home', icon: '🏠', label: 'Home' },
+                { id: 'chat', icon: '💬', label: 'Chat' },
+                { id: 'diary', icon: '📖', label: 'Diary' },
+                { id: 'memory', icon: '🐾', label: 'Memory' },
+                { id: 'more', icon: '⚙️', label: '设置' },
+            ];
+
+            const memoryView = ref({ year: null, month: null, startDate: '', endDate: '' });
+
+            const createPersistentRef = (key, defaultValue) => {
+                const localData = localStorage.getItem(key);
+                let parsed = defaultValue;
+                if (localData) { try { parsed = JSON.parse(localData); } catch (e) {} }
+                const r = ref(parsed);
+                watch(r, (newVal) => { localStorage.setItem(key, JSON.stringify(newVal)); }, { deep: true });
+                return r;
+            };
+
+            const loverName = createPersistentRef('loverName', '');
+            const anniversaryDate = createPersistentRef('anniversaryDate', '');
+            const statusMessage = createPersistentRef('statusMessage', '');
+            const systemPrompt = createPersistentRef('systemPrompt', '');
+            const apiUrl = createPersistentRef('apiUrl', '');
+            const apiKey = createPersistentRef('apiKey', '');
+            const apiModel = createPersistentRef('apiModel', '');
+            const customHeaders = createPersistentRef('customHeaders', '');
+            const minimaxGroupId = createPersistentRef('minimaxGroupId', '');
+            const minimaxApiKey = createPersistentRef('minimaxApiKey', '');
+            const minimaxModel = createPersistentRef('minimaxModel', '');
+            const userAvatar = createPersistentRef('userAvatar', 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="100%" height="100%" fill="%23bae6fd"/><text x="50%" y="55%" font-size="35" text-anchor="middle">👦</text></svg>');
+            const loverAvatar = createPersistentRef('loverAvatar', 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="100%" height="100%" fill="%23fbcfe8"/><text x="50%" y="55%" font-size="35" text-anchor="middle">👧</text></svg>');
+            const chatHistory = createPersistentRef('chatHistory', []);
+            const diaries = createPersistentRef('diaries', []);
+            const todos = createPersistentRef('todos', []);
+            const memories = createPersistentRef('memories', []);
+            const customBubbleCSS = createPersistentRef('customBubbleCSS', '');
+
+            // 暂存的图片，用于和文字一起发送
+            const pendingImage = ref(null);
+
+            const daysTogether = computed(() => {
+                if (!anniversaryDate.value) return 0;
+                return Math.max(0, Math.floor((new Date() - new Date(anniversaryDate.value)) / (1000 * 60 * 60 * 24)));
+            });
+            const nextAnniversary = computed(() => {
+                if (!anniversaryDate.value) return { days: 0, label: '纪念日', date: null };
+                const start = new Date(anniversaryDate.value);
+                const today = new Date();
+                let next = new Date(today.getFullYear(), start.getMonth(), start.getDate());
+                if (next <= today) next = new Date(today.getFullYear() + 1, start.getMonth(), start.getDate());
+                const days = Math.ceil((next - today) / (1000 * 60 * 60 * 24));
+                return { days, label: `${next.getFullYear() - start.getFullYear()}周年纪念日`, date: next };
+            });
+            const hasAPIConfigured = computed(() => {
+                const api = getActiveAPI();
+                return !!(api.endpoint && api.key);
+            });
+            const allYears = computed(() => {
+                const years = new Set();
+                memories.value.forEach(m => { const y = parseInt(m.startDate.split('-')[0]); if (!isNaN(y)) years.add(y); });
+                years.add(new Date().getFullYear());
+                return Array.from(years).sort((a, b) => b - a);
+            });
+
+            watch(customBubbleCSS, (newVal) => {
+                let styleEl = document.getElementById('custom-bubble-style');
+                if (!styleEl) { styleEl = document.createElement('style');
+                    styleEl.id = 'custom-bubble-style';
+                    document.head.appendChild(styleEl); }
+                styleEl.textContent = newVal || '';
+            }, { immediate: true });
+            onMounted(() => {
+                if (customBubbleCSS.value) {
+                    let styleEl = document.getElementById('custom-bubble-style');
+                    if (!styleEl) { styleEl = document.createElement('style');
+                        styleEl.id = 'custom-bubble-style';
+                        document.head.appendChild(styleEl); }
+                    styleEl.textContent = customBubbleCSS.value;
+                }
+            });
+            const resetBubbleCSS = () => { customBubbleCSS.value = ''; };
+
+            const getActiveAPI = () => {
+                if (minimaxGroupId.value && minimaxApiKey.value) {
+                    return { type: 'minimax', endpoint: `https://api.minimax.chat/v1/text/chatcompletion_pro?GroupId=${minimaxGroupId.value}`, key: minimaxApiKey.value, model: minimaxModel.value || 'abab6.5s-chat' };
+                }
+                return { type: 'openai', endpoint: apiUrl.value, key: apiKey.value, model: apiModel.value || 'gpt-3.5-turbo' };
+            };
+
+            // 构建多模态消息内容
+            const buildMessageContent = (text, imageBase64) => {
+                if (imageBase64) {
+                    return [
+                        { type: 'text', text: text },
+                        { type: 'image_url', image_url: { url: imageBase64 } }
+                    ];
+                }
+                return text;
+            };
+
+            const callAI = async (messages, customSystemPrompt = null) => {
+                const api = getActiveAPI();
+                if (!api.endpoint) throw new Error('请先填写 API 地址');
+                if (!api.key) throw new Error('请先填写 API Key');
+                const systemMsg = customSystemPrompt || systemPrompt.value;
+                const fullMessages = systemMsg ? [{ role: 'system', content: systemMsg }, ...messages] : [...messages];
+                let extraHeaders = {};
+                if (api.type === 'openai' && customHeaders.value && customHeaders.value.trim()) {
+                    try { extraHeaders = JSON.parse(customHeaders.value); } catch (e) {}
+                }
+                const response = await fetch(api.endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.key}`, ...extraHeaders },
+                    body: JSON.stringify({ model: api.model, messages: fullMessages, temperature: 0.8, max_tokens: 800 })
+                });
+                if (!response.ok) throw new Error(`请求失败 (${response.status})`);
+                const data = await response.json();
+                return (data.choices?.[0]?.message?.content || data.reply || '收到~').trim();
+            };
+
+            const userInputText = ref('');
+            const chatScrollArea = ref(null);
+            const scrollToBottom = () => { nextTick(() => { if (chatScrollArea.value) chatScrollArea.value.scrollTop = chatScrollArea.value.scrollHeight; }); };
+
+            const toggleMessageActions = (index) => {
+                chatHistory.value.forEach((m, i) => { if (i !== index) m.showActions = false; });
+                const msg = chatHistory.value[index];
+                if (msg) msg.showActions = !msg.showActions;
+            };
+
+            // 发送消息 - 支持图片+文字一起发送
+            const sendMessage = () => {
+                const hasText = userInputText.value.trim();
+                const hasImage = pendingImage.value;
+                if ((!hasText && !hasImage) || isAIThinking.value) return;
+
+                const imgData = pendingImage.value;
+                const textContent = hasText || '📷 看看这张图片';
+
+                // 先显示在聊天中
+                chatHistory.value.push({
+                    role: 'user',
+                    content: textContent,
+                    image: imgData || undefined,
+                    imageBase64: imgData || null,
+                    timestamp: new Date().toISOString(),
+                    isEditing: false,
+                    editContent: '',
+                    showActions: false
+                });
+
+                userInputText.value = '';
+                pendingImage.value = null;
+                scrollToBottom();
+            };
+
+            // AI 回复 - 支持多模态上下文
+            const triggerLoverReply = async () => {
+                if (isAIThinking.value) return;
+                const api = getActiveAPI();
+                if (!api.endpoint || !api.key) {
+                    chatHistory.value.push({ role: 'assistant', content: '（请先在"设置 → API"中配置 API 哦~）', timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false });
+                    scrollToBottom(); return;
+                }
+                if (chatHistory.value.length === 0) {
+                    chatHistory.value.push({ role: 'assistant', content: '想和我聊什么呢？先给我发条消息吧~', timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false });
+                    scrollToBottom(); return;
+                }
+
+                isAIThinking.value = true;
+                chatHistory.value.push({ role: 'assistant', content: '{{typing}}', timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false });
+                scrollToBottom();
+
+                try {
+                    // 构建上下文，支持图片
+                    const context = chatHistory.value
+                        .filter(m => m.content !== '{{typing}}')
+                        .slice(-20)
+                        .map(m => {
+                            const role = m.role === 'assistant' ? 'assistant' : 'user';
+                            const content = buildMessageContent(m.content, m.imageBase64 || null);
+                            return { role, content };
+                        });
+
+                    const reply = await callAI(context);
+                    const last = chatHistory.value[chatHistory.value.length - 1];
+                    if (last && last.content === '{{typing}}') last.content = reply;
+                } catch (e) {
+                    const last = chatHistory.value[chatHistory.value.length - 1];
+                    if (last && last.content === '{{typing}}') last.content = `（回复失败：${e.message}）`;
+                } finally {
+                    isAIThinking.value = false;
+                    scrollToBottom();
+                }
+            };
+
+            const editMessage = (i) => { const m = chatHistory.value[i];
+                m.isEditing = true;
+                m.editContent = m.content; };
+            const saveEditMessage = (i) => { const m = chatHistory.value[i];
+                m.content = m.editContent;
+                m.isEditing = false;
+                m.showActions = false; };
+            const cancelEditMessage = (i) => { chatHistory.value[i].isEditing = false; };
+            const deleteMessage = (i) => { chatHistory.value.splice(i, 1); };
+
+            const fileInput = ref(null);
+            const imageInput = ref(null);
+            const importInput = ref(null);
+            const uploadTarget = ref('user');
+            const triggerUpload = (t) => { uploadTarget.value = t;
+                fileInput.value.click(); };
+            const handleAvatarUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const c = document.createElement('canvas');
+                        const max = 200;
+                        let w = img.width,
+                            h = img.height;
+                        if (w > h) { if (w > max) { h *= max / w;
+                                w = max; } } else { if (h > max) { w *= max / h;
+                                h = max; } }
+                        c.width = w;
+                        c.height = h;
+                        c.getContext('2d').drawImage(img, 0, 0, w, h);
+                        const url = c.toDataURL('image/jpeg', 0.7);
+                        if (uploadTarget.value === 'user') userAvatar.value = url;
+                        else loverAvatar.value = url;
+                    };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+            };
+            const triggerImageUpload = () => imageInput.value.click();
+            const handleImageMessageUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    // 暂存图片，等用户输入文字后一起发送
+                    pendingImage.value = ev.target.result;
+                    // 同时立即显示图片在聊天中作为预览
+                    chatHistory.value.push({
+                        role: 'user',
+                        content: '📷 图片已选择，输入文字后发送',
+                        image: ev.target.result,
+                        imageBase64: ev.target.result,
+                        timestamp: new Date().toISOString(),
+                        isEditing: false,
+                        editContent: '',
+                        showActions: false,
+                        isImagePreview: true
+                    });
+                    scrollToBottom();
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+            };
+
+            const newDiaryText = ref('');
+            const diaryScrollArea = ref(null);
+            const scrollDiaryToBottom = () => { nextTick(() => { if (diaryScrollArea.value) diaryScrollArea.value.scrollTop = diaryScrollArea.value.scrollHeight; }); };
+            const saveDiary = async () => {
+                if (!newDiaryText.value.trim() || isAIThinking.value) return;
+                const api = getActiveAPI();
+                const hasAPI = !!(api.endpoint && api.key);
+                const entry = { date: new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }), userContent: newDiaryText.value.trim(), loverContent: null, isNoAPIPrompt: !hasAPI, isApiError: false, isLoading: false, editingUser: false, editingLover: false, editUserContent: '', editLoverContent: '' };
+                diaries.value.unshift(entry);
+                newDiaryText.value = '';
+                scrollDiaryToBottom();
+                if (hasAPI) { isAIThinking.value = true;
+                    entry.isLoading = true; try { const reply = await callAI([{ role: 'user', content: `这是恋人今天的日记：\n"${entry.userContent}"\n\n请以恋人的身份写一段温柔、真挚的回信。` }], systemPrompt.value || '你是对方的恋人，请用温柔的语气回复日记。');
+                        entry.loverContent = reply;
+                        entry.isNoAPIPrompt = false; } catch (e) { entry.loverContent = `回信生成失败：${e.message}`;
+                        entry.isApiError = true;
+                        entry.isNoAPIPrompt = false; } finally { entry.isLoading = false;
+                        isAIThinking.value = false; } }
+            };
+            const startEditDiaryUser = (i) => { const d = diaries.value[i];
+                d.editingUser = true;
+                d.editUserContent = d.userContent; };
+            const saveDiaryUserEdit = (i) => { const d = diaries.value[i];
+                d.userContent = d.editUserContent;
+                d.editingUser = false; };
+            const cancelDiaryUserEdit = (i) => { diaries.value[i].editingUser = false; };
+            const startEditDiaryLover = (i) => { const d = diaries.value[i];
+                d.editingLover = true;
+                d.editLoverContent = d.loverContent; };
+            const saveDiaryLoverEdit = (i) => { const d = diaries.value[i];
+                d.loverContent = d.editLoverContent;
+                d.editingLover = false;
+                d.isNoAPIPrompt = false;
+                d.isApiError = false; };
+            const cancelDiaryLoverEdit = (i) => { diaries.value[i].editingLover = false; };
+            const regenerateDiaryReply = async (i) => { const api = getActiveAPI(); if (!api.endpoint || !api.key) { alert('请先在设置 → API 中配置后再试。'); return; } if (isAIThinking.value) return; const d = diaries.value[i]; if (!d) return;
+                isAIThinking.value = true;
+                d.isLoading = true;
+                d.isApiError = false;
+                d.isNoAPIPrompt = false;
+                d.loverContent = null; try { const reply = await callAI([{ role: 'user', content: `这是恋人今天的日记：\n"${d.userContent}"\n\n请以恋人的身份写一段温柔、真挚的回信。` }], systemPrompt.value || '你是对方的恋人，请用温柔的语气回复日记。');
+                    d.loverContent = reply; } catch (e) { d.loverContent = `回信生成失败：${e.message}`;
+                    d.isApiError = true; } finally { d.isLoading = false;
+                    isAIThinking.value = false; } };
+            const confirmDeleteDiary = async (idx) => { const ok = await showConfirm('删除日记', '确定要删除这篇日记吗？'); if (ok) { diaries.value.splice(idx, 1);
+                    diaries.value = [...diaries.value]; } };
+
+            const daysInMonth = (year, month) => new Date(year, month, 0).getDate();
+            const getMonthMemoryCount = (year, month) => memories.value.filter(m => { const y = parseInt(m.startDate.split('-')[0]); const mo = parseInt(m.startDate.split('-')[1]); return y === year && mo === month; }).length;
+            const getMonthMemories = (year, month) => memories.value.filter(m => { const y = parseInt(m.startDate.split('-')[0]); const mo = parseInt(m.startDate.split('-')[1]); return y === year && mo === month; }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            const formatMemoryDateRange = (mem) => { const s = new Date(mem.startDate); const e = new Date(mem.endDate); const f = (d) => `${d.getMonth()+1}月${d.getDate()}日`; if (s.getTime() === e.getTime()) return f(s); return `${f(s)} — ${f(e)}`; };
+            const openMemoryMonth = (year, month) => { memoryView.value = { year, month, startDate: `${year}-${String(month).padStart(2,'0')}-01`, endDate: `${year}-${String(month).padStart(2,'0')}-${String(daysInMonth(year, month)).padStart(2,'0')}` };
+                showManualMemoryInput.value = false;
+                manualMemoryContent.value = ''; };
+            const generateMemoryFromChat = async () => { const api = getActiveAPI(); if (!api.endpoint || !api.key) { alert('请先在设置 → API 中配置 API。'); return; } if (isAIThinking.value) return; const sd = memoryView.value.startDate; const ed = memoryView.value.endDate; if (!sd || !ed) { alert('请选择日期范围。'); return; } const start = new Date(sd); const end = new Date(ed);
+                end.setHours(23, 59, 59, 999); const dateMap = {};
+                chatHistory.value.forEach(msg => { if (!msg.timestamp || msg.content === '{{typing}}') return; const d = new Date(msg.timestamp); if (d >= start && d <= end) { const dk = d.toISOString().split('T')[0]; if (!dateMap[dk]) dateMap[dk] = [];
+                        dateMap[dk].push(msg); } }); const dateKeys = Object.keys(dateMap).sort(); if (dateKeys.length === 0) { alert('所选日期范围内没有聊天记录。'); return; } let chatText = '';
+                dateKeys.forEach(dk => { chatText += `\n【${dk}】\n`;
+                    dateMap[dk].forEach(msg => { const role = msg.role === 'assistant' ? (loverName.value || 'AI') : '我';
+                        chatText += `${role}：${msg.content}\n`; }); });
+                isAIThinking.value = true; try { const reply = await callAI([{ role: 'user', content: `请根据以下聊天记录总结成一段记忆日记。\n\n${chatText}` }], systemPrompt.value || '你是温柔的记忆记录者。');
+                    memories.value.unshift({ id: 'mem_' + Date.now(), startDate: dateKeys[0], endDate: dateKeys[dateKeys.length - 1], content: reply, source: 'ai', expanded: false, isEditing: false, editContent: '', createdAt: new Date().toISOString() });
+                    memories.value = [...memories.value];
+                    alert('✅ 记忆已生成！'); } catch (e) { alert('❌ 生成失败：' + e.message); } finally { isAIThinking.value = false; } };
+            const saveManualMemory = () => { if (!manualMemoryContent.value.trim()) return; const sd = memoryView.value.startDate; const ed = memoryView.value.endDate; if (!sd || !ed) { alert('请选择日期范围。'); return; }
+                memories.value.unshift({ id: 'mem_' + Date.now(), startDate: sd, endDate: ed, content: manualMemoryContent.value.trim(), source: 'manual', expanded: false, isEditing: false, editContent: '', createdAt: new Date().toISOString() });
+                memories.value = [...memories.value];
+                manualMemoryContent.value = '';
+                showManualMemoryInput.value = false; };
+            const startEditMemory = (mem) => { mem.isEditing = true;
+                mem.editContent = mem.content; };
+            const saveEditMemory = (mem) => { mem.content = mem.editContent;
+                mem.isEditing = false; };
+            const cancelEditMemory = (mem) => { mem.isEditing = false; };
+            const confirmDeleteMemory = async (id) => { const ok = await showConfirm('删除记忆', '确定要删除这条记忆吗？'); if (ok) { const idx = memories.value.findIndex(m => m.id === id); if (idx !== -1) { memories.value.splice(idx, 1);
+                        memories.value = [...memories.value]; } } };
+
+            const newTodo = ref('');
+            const addTodo = () => { if (newTodo.value.trim()) { todos.value.push({ text: newTodo.value.trim(), done: false });
+                    newTodo.value = ''; } };
+            const removeTodo = (i) => { todos.value.splice(i, 1); };
+
+            const exportBackup = () => { const data = { version: '3.5', exportDate: new Date().toISOString(), loverName: loverName.value, anniversaryDate: anniversaryDate.value, statusMessage: statusMessage.value, systemPrompt: systemPrompt.value, apiUrl: apiUrl.value, apiKey: apiKey.value, apiModel: apiModel.value, customHeaders: customHeaders.value, minimaxGroupId: minimaxGroupId.value, minimaxApiKey: minimaxApiKey.value, minimaxModel: minimaxModel.value, userAvatar: userAvatar.value, loverAvatar: loverAvatar.value, chatHistory: chatHistory.value, diaries: diaries.value, todos: todos.value, memories: memories.value, customBubbleCSS: customBubbleCSS.value }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `${loverName.value || '恋人'}的小窝备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.json`;
+                a.click();
+                alert('✅ 备份文件已下载！'); };
+            const triggerImport = () => importInput.value.click();
+            const importBackup = (e) => { const file = e.target.files[0]; if (!file) return; if (!confirm('导入备份将覆盖当前数据，确定继续吗？')) { e.target.value = ''; return; } const reader = new FileReader();
+                reader.onload = (ev) => { try { const data = JSON.parse(ev.target.result); const map = { loverName, anniversaryDate, statusMessage, systemPrompt, apiUrl, apiKey, apiModel, customHeaders, minimaxGroupId, minimaxApiKey, minimaxModel, userAvatar, loverAvatar, chatHistory, diaries, todos, memories, customBubbleCSS }; let count = 0;
+                        Object.keys(map).forEach(k => { if (data[k] !== undefined) { map[k].value = data[k];
+                                count++; } });
+                        alert(`✅ 导入成功！共恢复 ${count} 项数据。`); } catch (err) { alert('❌ 解析失败。'); } };
+                reader.readAsText(file);
+                e.target.value = ''; };
+            const confirmClearAllData = async () => { const c1 = await showConfirm('清除所有数据', '确定要清除所有数据吗？'); if (!c1) return; const c2 = await showConfirm('再次确认', '此操作不可撤销！'); if (c2) { localStorage.clear();
+                    alert('已清除，页面将刷新。');
+                    location.reload(); } };
+
+            const testAPIConnection = async () => { if (!apiUrl.value) { testResult.value = { success: false, message: '请先填写 API 地址' }; return; } if (!apiKey.value) { testResult.value = { success: false, message: '请先填写 API Key' }; return; }
+                isTesting.value = true;
+                testResult.value = null; try { await callAI([{ role: 'user', content: '回复：连接成功' }], '回复"连接成功！"');
+                    testResult.value = { success: true, message: '✅ 连接成功！' }; } catch (e) { testResult.value = { success: false, message: `❌ ${e.message}` }; } finally { isTesting.value = false; } };
+            const testMinimaxConnection = async () => { if (!minimaxGroupId.value) { minimaxTestResult.value = { success: false, message: '请先填写 Group ID' }; return; } if (!minimaxApiKey.value) { minimaxTestResult.value = { success: false, message: '请先填写 API Key' }; return; }
+                isTestingMinimax.value = true;
+                minimaxTestResult.value = null; try { const resp = await fetch(`https://api.minimax.chat/v1/text/chatcompletion_pro?GroupId=${minimaxGroupId.value}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${minimaxApiKey.value}` }, body: JSON.stringify({ model: minimaxModel.value || 'abab6.5s-chat', messages: [{ role: 'system', content: '回复"连接成功！"' }, { role: 'user', content: '回复：连接成功' }], max_tokens: 50 }) }); if (!resp.ok) throw new Error(`状态码 ${resp.status}`);
+                    minimaxTestResult.value = { success: true, message: '✅ 连接成功！' }; } catch (e) { minimaxTestResult.value = { success: false, message: `❌ ${e.message}` }; } finally { isTestingMinimax.value = false; } };
+
+            watch(activeTab, (tab) => { settingsSubPage.value = null;
+                showManualMemoryInput.value = false; if (tab === 'chat') scrollToBottom(); if (tab === 'diary') scrollDiaryToBottom(); });
+
+            return {
+                activeTab, tabs, confirmDialog, isAIThinking, isTesting, isTestingMinimax, testResult, minimaxTestResult, previewImage, hasAPIConfigured,
+                settingsSubPage, showManualMemoryInput, manualMemoryContent, memoryView, allYears, pendingImage,
+                loverName, anniversaryDate, statusMessage, systemPrompt, daysTogether, nextAnniversary,
+                apiUrl, apiKey, apiModel, customHeaders, minimaxGroupId, minimaxApiKey, minimaxModel,
+                userAvatar, loverAvatar, chatHistory, userInputText, chatScrollArea,
+                toggleMessageActions, sendMessage, triggerLoverReply, editMessage, saveEditMessage, cancelEditMessage, deleteMessage,
+                fileInput, imageInput, importInput, triggerUpload, handleAvatarUpload, triggerImageUpload, handleImageMessageUpload,
+                diaries, diaryScrollArea, newDiaryText, saveDiary, startEditDiaryUser, saveDiaryUserEdit, cancelDiaryUserEdit,
+                startEditDiaryLover, saveDiaryLoverEdit, cancelDiaryLoverEdit, regenerateDiaryReply, confirmDeleteDiary,
+                memories, daysInMonth, getMonthMemoryCount, getMonthMemories, formatMemoryDateRange,
+                openMemoryMonth, generateMemoryFromChat, saveManualMemory, startEditMemory, saveEditMemory, cancelEditMemory, confirmDeleteMemory,
+                customBubbleCSS, resetBubbleCSS,
+                todos, newTodo, addTodo, removeTodo,
+                exportBackup, triggerImport, importBackup, confirmClearAllData, testAPIConnection, testMinimaxConnection,
+            };
+        }
+    }).mount('#app')
+</script>
+</body>
+</html>
