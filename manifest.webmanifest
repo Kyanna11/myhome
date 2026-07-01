@@ -1,16 +1,16 @@
 {
-  "name": "myhome",
-  "short_name": "myhome",
+  "name": "我们的秘密小窝",
+  "short_name": "小窝",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#e0ebf5",
   "theme_color": "#93c5fd",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "C2DD4F6E-7577-4855-9927-11E6249175F6.png",
+      "src": "C2DD4F6E-7577-4855-9927-11E6249175F6.jpeg",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/jpeg",
       "purpose": "maskable any"
     }
   ]
