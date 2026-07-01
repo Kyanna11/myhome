@@ -1,0 +1,17 @@
+{
+  "name": "myhome",
+  "short_name": "myhome",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#93c5fd",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "C2DD4F6E-7577-4855-9927-11E6249175F6.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ]
+}
