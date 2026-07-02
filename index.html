@@ -281,10 +281,17 @@
                     <p class="text-xs">发送第一条消息，开始你们的故事吧</p>
                 </div>
 
-                <div v-for="(msg, index) in chatHistory" :key="index"
+                <div v-if="displayCount < chatHistory.length" class="text-center py-2">
+                    <button @click="loadMoreMessages" class="px-4 py-1.5 rounded-full glass-card text-[10px] text-sky-500 font-medium hover:bg-white/60 transition active:scale-95">
+                        📜 加载更早消息（已显示 {{ displayCount }}/{{ chatHistory.length }}）
+                    </button>
+                    <button @click="loadAllMessages" class="block mx-auto mt-1 text-[9px] text-gray-400 hover:text-sky-500">加载全部</button>
+                </div>
+
+                <div v-for="(msg, index) in visibleMessages" :key="msg._uid || (chatHistory.length - visibleMessages.length + index)"
                 class="chat-msg-group"
                 :class="[msg.role === 'assistant' ? 'flex items-start space-x-2.5 max-w-[85%]' : 'flex items-start justify-end space-x-2.5 max-w-[85%] ml-auto', msg.showActions ? 'show-actions' : '']"
-                @click.stop="toggleMessageActions(index)">
+                @click.stop="toggleMessageActions(msg)">
 
                 <div v-if="msg.role === 'assistant'" class="w-8 h-8 rounded-full shadow-sm overflow-hidden flex-shrink-0 bg-white">
                     <img :src="loverAvatar" class="w-full h-full object-cover">
@@ -295,8 +302,8 @@
                         <div v-if="msg.isEditing">
                             <textarea v-model="msg.editContent" rows="3" class="w-full bg-white/80 p-2 rounded-lg border border-sky-300 focus:outline-none text-xs text-gray-800 resize-none"></textarea>
                             <div class="flex justify-end space-x-2 mt-1.5">
-                                <button @click.stop="cancelEditMessage(index)" class="text-[10px] bg-gray-100 text-gray-500 px-2 py-1 rounded-lg">取消</button>
-                                <button @click.stop="saveEditMessage(index)" class="text-[10px] bg-sky-100 text-sky-600 px-2 py-1 rounded-lg font-bold">保存</button>
+                                <button @click.stop="cancelEditMessage(msg)" class="text-[10px] bg-gray-100 text-gray-500 px-2 py-1 rounded-lg">取消</button>
+                                <button @click.stop="saveEditMessage(msg)" class="text-[10px] bg-sky-100 text-sky-600 px-2 py-1 rounded-lg font-bold">保存</button>
                             </div>
                         </div>
                         <div v-else>
@@ -308,8 +315,8 @@
 
                     <div class="absolute flex space-x-1 text-[9px] action-btn"
                     :class="msg.role === 'assistant' ? 'left-1 -bottom-4' : 'right-1 -bottom-4'">
-                    <button @click.stop="editMessage(index)" class="px-1.5 py-0.5 rounded glass-btn text-gray-500 hover:text-sky-600 bg-white/60">编辑</button>
-                    <button @click.stop="deleteMessage(index)" class="px-1.5 py-0.5 rounded glass-btn text-gray-500 hover:text-red-400 bg-white/60">删除</button>
+                    <button @click.stop="editMessage(msg)" class="px-1.5 py-0.5 rounded glass-btn text-gray-500 hover:text-sky-600 bg-white/60">编辑</button>
+                    <button @click.stop="deleteMessage(msg)" class="px-1.5 py-0.5 rounded glass-btn text-gray-500 hover:text-red-400 bg-white/60">删除</button>
                 </div>
             </div>
 
@@ -602,6 +609,9 @@
             const showManualMemoryInput = ref(false);
             const manualMemoryContent = ref('');
 
+            const PAGE_SIZE = 30;
+            const displayCount = ref(PAGE_SIZE);
+
             const confirmDialog = ref({ show: false, title: '', message: '', onConfirm: null, onCancel: null });
             const showConfirm = (title, message) => new Promise((resolve) => {
                 confirmDialog.value = { show: true, title, message, onConfirm: () => resolve(true), onCancel: () => resolve(false) };
@@ -645,8 +655,20 @@
             const memories = createPersistentRef('memories', []);
             const customBubbleCSS = createPersistentRef('customBubbleCSS', '');
 
-            // 暂存的图片，用于和文字一起发送
             const pendingImage = ref(null);
+
+            let msgUidCounter = 0;
+            const ensureMsgUid = (msg) => {
+                if (!msg._uid) { msg._uid = 'msg_' + (++msgUidCounter) + '_' + Date.now(); }
+                return msg;
+            };
+            chatHistory.value.forEach(ensureMsgUid);
+
+            const visibleMessages = computed(() => {
+                const total = chatHistory.value.length;
+                const count = Math.min(displayCount.value, total);
+                return chatHistory.value.slice(total - count);
+            });
 
             const daysTogether = computed(() => {
                 if (!anniversaryDate.value) return 0;
@@ -687,6 +709,7 @@
                         document.head.appendChild(styleEl); }
                     styleEl.textContent = customBubbleCSS.value;
                 }
+                nextTick(() => { displayCount.value = Math.min(PAGE_SIZE, chatHistory.value.length); });
             });
             const resetBubbleCSS = () => { customBubbleCSS.value = ''; };
 
@@ -697,13 +720,9 @@
                 return { type: 'openai', endpoint: apiUrl.value, key: apiKey.value, model: apiModel.value || 'gpt-3.5-turbo' };
             };
 
-            // 构建多模态消息内容
             const buildMessageContent = (text, imageBase64) => {
                 if (imageBase64) {
-                    return [
-                        { type: 'text', text: text },
-                        { type: 'image_url', image_url: { url: imageBase64 } }
-                    ];
+                    return [{ type: 'text', text: text }, { type: 'image_url', image_url: { url: imageBase64 } }];
                 }
                 return text;
             };
@@ -732,87 +751,81 @@
             const chatScrollArea = ref(null);
             const scrollToBottom = () => { nextTick(() => { if (chatScrollArea.value) chatScrollArea.value.scrollTop = chatScrollArea.value.scrollHeight; }); };
 
-            const toggleMessageActions = (index) => {
-                chatHistory.value.forEach((m, i) => { if (i !== index) m.showActions = false; });
-                const msg = chatHistory.value[index];
-                if (msg) msg.showActions = !msg.showActions;
+            const loadMoreMessages = () => { displayCount.value = Math.min(displayCount.value + PAGE_SIZE, chatHistory.value.length); };
+            const loadAllMessages = () => { displayCount.value = chatHistory.value.length; };
+
+            const toggleMessageActions = (msg) => {
+                chatHistory.value.forEach(m => { if (m !== msg) m.showActions = false; });
+                msg.showActions = !msg.showActions;
             };
 
-            // 发送消息 - 支持图片+文字一起发送
             const sendMessage = () => {
                 const hasText = userInputText.value.trim();
                 const hasImage = pendingImage.value;
                 if ((!hasText && !hasImage) || isAIThinking.value) return;
-
                 const imgData = pendingImage.value;
                 const textContent = hasText || '📷 看看这张图片';
-
-                // 先显示在聊天中
-                chatHistory.value.push({
-                    role: 'user',
-                    content: textContent,
-                    image: imgData || undefined,
-                    imageBase64: imgData || null,
-                    timestamp: new Date().toISOString(),
-                    isEditing: false,
-                    editContent: '',
-                    showActions: false
-                });
-
+                const newMsg = ensureMsgUid({ role: 'user', content: textContent, image: imgData || undefined, imageBase64: imgData || null, timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false });
+                chatHistory.value.push(newMsg);
                 userInputText.value = '';
                 pendingImage.value = null;
+                displayCount.value = chatHistory.value.length;
                 scrollToBottom();
             };
 
-            // AI 回复 - 支持多模态上下文
             const triggerLoverReply = async () => {
                 if (isAIThinking.value) return;
                 const api = getActiveAPI();
                 if (!api.endpoint || !api.key) {
-                    chatHistory.value.push({ role: 'assistant', content: '（请先在"设置 → API"中配置 API 哦~）', timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false });
+                    const msg = ensureMsgUid({ role: 'assistant', content: '（请先在"设置 → API"中配置 API 哦~）', timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false });
+                    chatHistory.value.push(msg);
+                    displayCount.value = chatHistory.value.length;
                     scrollToBottom(); return;
                 }
                 if (chatHistory.value.length === 0) {
-                    chatHistory.value.push({ role: 'assistant', content: '想和我聊什么呢？先给我发条消息吧~', timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false });
+                    const msg = ensureMsgUid({ role: 'assistant', content: '想和我聊什么呢？先给我发条消息吧~', timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false });
+                    chatHistory.value.push(msg);
+                    displayCount.value = chatHistory.value.length;
                     scrollToBottom(); return;
                 }
-
                 isAIThinking.value = true;
-                chatHistory.value.push({ role: 'assistant', content: '{{typing}}', timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false });
+                const typingMsg = ensureMsgUid({ role: 'assistant', content: '{{typing}}', timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false });
+                chatHistory.value.push(typingMsg);
+                displayCount.value = chatHistory.value.length;
                 scrollToBottom();
-
                 try {
-                    // 构建上下文，支持图片
-                    const context = chatHistory.value
-                        .filter(m => m.content !== '{{typing}}')
-                        .slice(-20)
-                        .map(m => {
-                            const role = m.role === 'assistant' ? 'assistant' : 'user';
-                            const content = buildMessageContent(m.content, m.imageBase64 || null);
-                            return { role, content };
+                    const recentMemories = memories.value.slice(0, 3);
+                    let memoryContext = '';
+                    if (recentMemories.length > 0) {
+                        memoryContext = '\n\n以下是你们之间珍贵的记忆，请在聊天中自然地参考这些记忆：\n';
+                        recentMemories.forEach((mem, i) => {
+                            const s = new Date(mem.startDate);
+                            const e = new Date(mem.endDate);
+                            const f = (d) => `${d.getMonth()+1}月${d.getDate()}日`;
+                            const range = s.getTime() === e.getTime() ? f(s) : `${f(s)} — ${f(e)}`;
+                            memoryContext += `记忆${i+1}（${range}）：${mem.content}\n`;
                         });
-
-                    const reply = await callAI(context);
-                    const last = chatHistory.value[chatHistory.value.length - 1];
-                    if (last && last.content === '{{typing}}') last.content = reply;
-                } catch (e) {
-                    const last = chatHistory.value[chatHistory.value.length - 1];
-                    if (last && last.content === '{{typing}}') last.content = `（回复失败：${e.message}）`;
-                } finally {
-                    isAIThinking.value = false;
-                    scrollToBottom();
-                }
+                    }
+                    const context = chatHistory.value.filter(m => m.content !== '{{typing}}').slice(-20).map(m => {
+                        const role = m.role === 'assistant' ? 'assistant' : 'user';
+                        const content = buildMessageContent(m.content, m.imageBase64 || null);
+                        return { role, content };
+                    });
+                    const customPrompt = systemPrompt.value ? systemPrompt.value + memoryContext : '你是对方的恋人，请用温柔的语气回复。' + memoryContext;
+                    const reply = await callAI(context, customPrompt);
+                    if (typingMsg.content === '{{typing}}') typingMsg.content = reply;
+                } catch (e) { if (typingMsg.content === '{{typing}}') typingMsg.content = `（回复失败：${e.message}）`; }
+                finally { isAIThinking.value = false;
+                    scrollToBottom(); }
             };
 
-            const editMessage = (i) => { const m = chatHistory.value[i];
-                m.isEditing = true;
-                m.editContent = m.content; };
-            const saveEditMessage = (i) => { const m = chatHistory.value[i];
-                m.content = m.editContent;
-                m.isEditing = false;
-                m.showActions = false; };
-            const cancelEditMessage = (i) => { chatHistory.value[i].isEditing = false; };
-            const deleteMessage = (i) => { chatHistory.value.splice(i, 1); };
+            const editMessage = (msg) => { msg.isEditing = true;
+                msg.editContent = msg.content; };
+            const saveEditMessage = (msg) => { msg.content = msg.editContent;
+                msg.isEditing = false;
+                msg.showActions = false; };
+            const cancelEditMessage = (msg) => { msg.isEditing = false; };
+            const deleteMessage = (msg) => { const idx = chatHistory.value.indexOf(msg); if (idx !== -1) chatHistory.value.splice(idx, 1); };
 
             const fileInput = ref(null);
             const imageInput = ref(null);
@@ -852,21 +865,25 @@
                 if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (ev) => {
-                    // 暂存图片，等用户输入文字后一起发送
-                    pendingImage.value = ev.target.result;
-                    // 同时立即显示图片在聊天中作为预览
-                    chatHistory.value.push({
-                        role: 'user',
-                        content: '📷 图片已选择，输入文字后发送',
-                        image: ev.target.result,
-                        imageBase64: ev.target.result,
-                        timestamp: new Date().toISOString(),
-                        isEditing: false,
-                        editContent: '',
-                        showActions: false,
-                        isImagePreview: true
-                    });
-                    scrollToBottom();
+                    const img = new Image();
+                    img.onload = () => {
+                        const c = document.createElement('canvas');
+                        const maxW = 800;
+                        let w = img.width,
+                            h = img.height;
+                        if (w > maxW) { h *= maxW / w;
+                            w = maxW; }
+                        c.width = w;
+                        c.height = h;
+                        c.getContext('2d').drawImage(img, 0, 0, w, h);
+                        const compressed = c.toDataURL('image/jpeg', 0.6);
+                        pendingImage.value = compressed;
+                        const previewMsg = ensureMsgUid({ role: 'user', content: '📷 图片已选择，输入文字后发送', image: compressed, imageBase64: compressed, timestamp: new Date().toISOString(), isEditing: false, editContent: '', showActions: false, isImagePreview: true });
+                        chatHistory.value.push(previewMsg);
+                        displayCount.value = chatHistory.value.length;
+                        scrollToBottom();
+                    };
+                    img.src = ev.target.result;
                 };
                 reader.readAsDataURL(file);
                 e.target.value = '';
@@ -955,7 +972,7 @@
                     newTodo.value = ''; } };
             const removeTodo = (i) => { todos.value.splice(i, 1); };
 
-            const exportBackup = () => { const data = { version: '3.5', exportDate: new Date().toISOString(), loverName: loverName.value, anniversaryDate: anniversaryDate.value, statusMessage: statusMessage.value, systemPrompt: systemPrompt.value, apiUrl: apiUrl.value, apiKey: apiKey.value, apiModel: apiModel.value, customHeaders: customHeaders.value, minimaxGroupId: minimaxGroupId.value, minimaxApiKey: minimaxApiKey.value, minimaxModel: minimaxModel.value, userAvatar: userAvatar.value, loverAvatar: loverAvatar.value, chatHistory: chatHistory.value, diaries: diaries.value, todos: todos.value, memories: memories.value, customBubbleCSS: customBubbleCSS.value }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const a = document.createElement('a');
+            const exportBackup = () => { const data = { version: '3.8', exportDate: new Date().toISOString(), loverName: loverName.value, anniversaryDate: anniversaryDate.value, statusMessage: statusMessage.value, systemPrompt: systemPrompt.value, apiUrl: apiUrl.value, apiKey: apiKey.value, apiModel: apiModel.value, customHeaders: customHeaders.value, minimaxGroupId: minimaxGroupId.value, minimaxApiKey: minimaxApiKey.value, minimaxModel: minimaxModel.value, userAvatar: userAvatar.value, loverAvatar: loverAvatar.value, chatHistory: chatHistory.value, diaries: diaries.value, todos: todos.value, memories: memories.value, customBubbleCSS: customBubbleCSS.value }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const a = document.createElement('a');
                 a.href = URL.createObjectURL(blob);
                 a.download = `${loverName.value || '恋人'}的小窝备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.json`;
                 a.click();
@@ -965,7 +982,9 @@
                 reader.onload = (ev) => { try { const data = JSON.parse(ev.target.result); const map = { loverName, anniversaryDate, statusMessage, systemPrompt, apiUrl, apiKey, apiModel, customHeaders, minimaxGroupId, minimaxApiKey, minimaxModel, userAvatar, loverAvatar, chatHistory, diaries, todos, memories, customBubbleCSS }; let count = 0;
                         Object.keys(map).forEach(k => { if (data[k] !== undefined) { map[k].value = data[k];
                                 count++; } });
-                        alert(`✅ 导入成功！共恢复 ${count} 项数据。`); } catch (err) { alert('❌ 解析失败。'); } };
+                        alert(`✅ 导入成功！共恢复 ${count} 项数据。`);
+                        nextTick(() => { chatHistory.value.forEach(ensureMsgUid);
+                            displayCount.value = Math.min(PAGE_SIZE, chatHistory.value.length); }); } catch (err) { alert('❌ 解析失败。'); } };
                 reader.readAsText(file);
                 e.target.value = ''; };
             const confirmClearAllData = async () => { const c1 = await showConfirm('清除所有数据', '确定要清除所有数据吗？'); if (!c1) return; const c2 = await showConfirm('再次确认', '此操作不可撤销！'); if (c2) { localStorage.clear();
@@ -981,8 +1000,16 @@
                 minimaxTestResult.value = null; try { const resp = await fetch(`https://api.minimax.chat/v1/text/chatcompletion_pro?GroupId=${minimaxGroupId.value}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${minimaxApiKey.value}` }, body: JSON.stringify({ model: minimaxModel.value || 'abab6.5s-chat', messages: [{ role: 'system', content: '回复"连接成功！"' }, { role: 'user', content: '回复：连接成功' }], max_tokens: 50 }) }); if (!resp.ok) throw new Error(`状态码 ${resp.status}`);
                     minimaxTestResult.value = { success: true, message: '✅ 连接成功！' }; } catch (e) { minimaxTestResult.value = { success: false, message: `❌ ${e.message}` }; } finally { isTestingMinimax.value = false; } };
 
-            watch(activeTab, (tab) => { settingsSubPage.value = null;
-                showManualMemoryInput.value = false; if (tab === 'chat') scrollToBottom(); if (tab === 'diary') scrollDiaryToBottom(); });
+            // ✅ 切换 Tab 时重置分页
+            watch(activeTab, (tab) => {
+                settingsSubPage.value = null;
+                showManualMemoryInput.value = false;
+                if (tab === 'chat') {
+                    displayCount.value = Math.min(PAGE_SIZE, chatHistory.value.length);
+                    scrollToBottom();
+                }
+                if (tab === 'diary') scrollDiaryToBottom();
+            });
 
             return {
                 activeTab, tabs, confirmDialog, isAIThinking, isTesting, isTestingMinimax, testResult, minimaxTestResult, previewImage, hasAPIConfigured,
@@ -990,6 +1017,7 @@
                 loverName, anniversaryDate, statusMessage, systemPrompt, daysTogether, nextAnniversary,
                 apiUrl, apiKey, apiModel, customHeaders, minimaxGroupId, minimaxApiKey, minimaxModel,
                 userAvatar, loverAvatar, chatHistory, userInputText, chatScrollArea,
+                displayCount, visibleMessages, loadMoreMessages, loadAllMessages, PAGE_SIZE,
                 toggleMessageActions, sendMessage, triggerLoverReply, editMessage, saveEditMessage, cancelEditMessage, deleteMessage,
                 fileInput, imageInput, importInput, triggerUpload, handleAvatarUpload, triggerImageUpload, handleImageMessageUpload,
                 diaries, diaryScrollArea, newDiaryText, saveDiary, startEditDiaryUser, saveDiaryUserEdit, cancelDiaryUserEdit,
